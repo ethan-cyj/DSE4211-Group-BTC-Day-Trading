@@ -1,0 +1,325 @@
+,searchTerm,weekLabel,interestScore
+0,crypto,"Mar 3 – 9, 2024",70
+1,crypto,"Mar 10 – 16, 2024",65
+2,crypto,"Mar 17 – 23, 2024",53
+3,crypto,"Mar 24 – 30, 2024",54
+4,crypto,"Mar 31 – Apr 6, 2024",47
+5,crypto,"Apr 7 – 13, 2024",44
+6,crypto,"Apr 14 – 20, 2024",40
+7,crypto,"Apr 21 – 27, 2024",36
+8,crypto,"Apr 28 – May 4, 2024",34
+9,crypto,"May 5 – 11, 2024",32
+10,crypto,"May 12 – 18, 2024",33
+11,crypto,"May 19 – 25, 2024",35
+12,crypto,"May 26 – Jun 1, 2024",38
+13,crypto,"Jun 2 – 8, 2024",40
+14,crypto,"Jun 9 – 15, 2024",37
+15,crypto,"Jun 16 – 22, 2024",34
+16,crypto,"Jun 23 – 29, 2024",31
+17,crypto,"Jun 30 – Jul 6, 2024",32
+18,crypto,"Jul 7 – 13, 2024",31
+19,crypto,"Jul 14 – 20, 2024",34
+20,crypto,"Jul 21 – 27, 2024",36
+21,crypto,"Jul 28 – Aug 3, 2024",31
+22,crypto,"Aug 4 – 10, 2024",35
+23,crypto,"Aug 11 – 17, 2024",30
+24,crypto,"Aug 18 – 24, 2024",30
+25,crypto,"Aug 25 – 31, 2024",31
+26,crypto,"Sep 1 – 7, 2024",29
+27,crypto,"Sep 8 – 14, 2024",28
+28,crypto,"Sep 15 – 21, 2024",30
+29,crypto,"Sep 22 – 28, 2024",33
+30,crypto,"Sep 29 – Oct 5, 2024",30
+31,crypto,"Oct 6 – 12, 2024",28
+32,crypto,"Oct 13 – 19, 2024",30
+33,crypto,"Oct 20 – 26, 2024",30
+34,crypto,"Oct 27 – Nov 2, 2024",31
+35,crypto,"Nov 3 – 9, 2024",39
+36,crypto,"Nov 10 – 16, 2024",73
+37,crypto,"Nov 17 – 23, 2024",69
+38,crypto,"Nov 24 – 30, 2024",67
+39,crypto,"Dec 1 – 7, 2024",86
+40,crypto,"Dec 8 – 14, 2024",75
+41,crypto,"Dec 15 – 21, 2024",66
+42,crypto,"Dec 22 – 28, 2024",53
+43,crypto,"Dec 29, 2024 – Jan 4, 2025",54
+44,crypto,"Jan 5 – 11, 2025",52
+45,crypto,"Jan 12 – 18, 2025",60
+46,crypto,"Jan 19 – 25, 2025",100
+47,crypto,"Jan 26 – Feb 1, 2025",60
+48,crypto,"Feb 2 – 8, 2025",60
+49,crypto,"Feb 9 – 15, 2025",46
+50,crypto,"Feb 16 – 22, 2025",47
+51,crypto,"Feb 23 – Mar 1, 2025",51
+52,crypto,"Mar 2 – 8, 2025",61
+53,crypto,"Mar 9 – 15, 2025",43
+54,bitcoin,"Mar 3 – 9, 2024",79
+55,bitcoin,"Mar 10 – 16, 2024",75
+56,bitcoin,"Mar 17 – 23, 2024",61
+57,bitcoin,"Mar 24 – 30, 2024",53
+58,bitcoin,"Mar 31 – Apr 6, 2024",50
+59,bitcoin,"Apr 7 – 13, 2024",51
+60,bitcoin,"Apr 14 – 20, 2024",68
+61,bitcoin,"Apr 21 – 27, 2024",42
+62,bitcoin,"Apr 28 – May 4, 2024",42
+63,bitcoin,"May 5 – 11, 2024",34
+64,bitcoin,"May 12 – 18, 2024",34
+65,bitcoin,"May 19 – 25, 2024",37
+66,bitcoin,"May 26 – Jun 1, 2024",31
+67,bitcoin,"Jun 2 – 8, 2024",33
+68,bitcoin,"Jun 9 – 15, 2024",31
+69,bitcoin,"Jun 16 – 22, 2024",30
+70,bitcoin,"Jun 23 – 29, 2024",31
+71,bitcoin,"Jun 30 – Jul 6, 2024",34
+72,bitcoin,"Jul 7 – 13, 2024",35
+73,bitcoin,"Jul 14 – 20, 2024",36
+74,bitcoin,"Jul 21 – 27, 2024",37
+75,bitcoin,"Jul 28 – Aug 3, 2024",35
+76,bitcoin,"Aug 4 – 10, 2024",51
+77,bitcoin,"Aug 11 – 17, 2024",35
+78,bitcoin,"Aug 18 – 24, 2024",32
+79,bitcoin,"Aug 25 – 31, 2024",29
+80,bitcoin,"Sep 1 – 7, 2024",30
+81,bitcoin,"Sep 8 – 14, 2024",29
+82,bitcoin,"Sep 15 – 21, 2024",30
+83,bitcoin,"Sep 22 – 28, 2024",29
+84,bitcoin,"Sep 29 – Oct 5, 2024",27
+85,bitcoin,"Oct 6 – 12, 2024",28
+86,bitcoin,"Oct 13 – 19, 2024",28
+87,bitcoin,"Oct 20 – 26, 2024",28
+88,bitcoin,"Oct 27 – Nov 2, 2024",36
+89,bitcoin,"Nov 3 – 9, 2024",54
+90,bitcoin,"Nov 10 – 16, 2024",100
+91,bitcoin,"Nov 17 – 23, 2024",84
+92,bitcoin,"Nov 24 – 30, 2024",66
+93,bitcoin,"Dec 1 – 7, 2024",78
+94,bitcoin,"Dec 8 – 14, 2024",63
+95,bitcoin,"Dec 15 – 21, 2024",68
+96,bitcoin,"Dec 22 – 28, 2024",57
+97,bitcoin,"Dec 29, 2024 – Jan 4, 2025",52
+98,bitcoin,"Jan 5 – 11, 2025",51
+99,bitcoin,"Jan 12 – 18, 2025",50
+100,bitcoin,"Jan 19 – 25, 2025",66
+101,bitcoin,"Jan 26 – Feb 1, 2025",48
+102,bitcoin,"Feb 2 – 8, 2025",50
+103,bitcoin,"Feb 9 – 15, 2025",37
+104,bitcoin,"Feb 16 – 22, 2025",36
+105,bitcoin,"Feb 23 – Mar 1, 2025",55
+106,bitcoin,"Mar 2 – 8, 2025",57
+107,bitcoin,"Mar 9 – 15, 2025",36
+108,BTC,"Mar 3 – 9, 2024",78
+109,BTC,"Mar 10 – 16, 2024",69
+110,BTC,"Mar 17 – 23, 2024",58
+111,BTC,"Mar 24 – 30, 2024",45
+112,BTC,"Mar 31 – Apr 6, 2024",43
+113,BTC,"Apr 7 – 13, 2024",43
+114,BTC,"Apr 14 – 20, 2024",56
+115,BTC,"Apr 21 – 27, 2024",40
+116,BTC,"Apr 28 – May 4, 2024",40
+117,BTC,"May 5 – 11, 2024",32
+118,BTC,"May 12 – 18, 2024",32
+119,BTC,"May 19 – 25, 2024",35
+120,BTC,"May 26 – Jun 1, 2024",29
+121,BTC,"Jun 2 – 8, 2024",32
+122,BTC,"Jun 9 – 15, 2024",31
+123,BTC,"Jun 16 – 22, 2024",29
+124,BTC,"Jun 23 – 29, 2024",31
+125,BTC,"Jun 30 – Jul 6, 2024",32
+126,BTC,"Jul 7 – 13, 2024",31
+127,BTC,"Jul 14 – 20, 2024",35
+128,BTC,"Jul 21 – 27, 2024",35
+129,BTC,"Jul 28 – Aug 3, 2024",34
+130,BTC,"Aug 4 – 10, 2024",51
+131,BTC,"Aug 11 – 17, 2024",32
+132,BTC,"Aug 18 – 24, 2024",30
+133,BTC,"Aug 25 – 31, 2024",30
+134,BTC,"Sep 1 – 7, 2024",30
+135,BTC,"Sep 8 – 14, 2024",29
+136,BTC,"Sep 15 – 21, 2024",30
+137,BTC,"Sep 22 – 28, 2024",29
+138,BTC,"Sep 29 – Oct 5, 2024",28
+139,BTC,"Oct 6 – 12, 2024",26
+140,BTC,"Oct 13 – 19, 2024",29
+141,BTC,"Oct 20 – 26, 2024",28
+142,BTC,"Oct 27 – Nov 2, 2024",38
+143,BTC,"Nov 3 – 9, 2024",54
+144,BTC,"Nov 10 – 16, 2024",100
+145,BTC,"Nov 17 – 23, 2024",79
+146,BTC,"Nov 24 – 30, 2024",61
+147,BTC,"Dec 1 – 7, 2024",69
+148,BTC,"Dec 8 – 14, 2024",53
+149,BTC,"Dec 15 – 21, 2024",65
+150,BTC,"Dec 22 – 28, 2024",49
+151,BTC,"Dec 29, 2024 – Jan 4, 2025",42
+152,BTC,"Jan 5 – 11, 2025",43
+153,BTC,"Jan 12 – 18, 2025",45
+154,BTC,"Jan 19 – 25, 2025",53
+155,BTC,"Jan 26 – Feb 1, 2025",42
+156,BTC,"Feb 2 – 8, 2025",47
+157,BTC,"Feb 9 – 15, 2025",33
+158,BTC,"Feb 16 – 22, 2025",32
+159,BTC,"Feb 23 – Mar 1, 2025",50
+160,BTC,"Mar 2 – 8, 2025",53
+161,BTC,"Mar 9 – 15, 2025",31
+162,ETH,"Mar 3 – 9, 2024",100
+163,ETH,"Mar 10 – 16, 2024",92
+164,ETH,"Mar 17 – 23, 2024",70
+165,ETH,"Mar 24 – 30, 2024",61
+166,ETH,"Mar 31 – Apr 6, 2024",54
+167,ETH,"Apr 7 – 13, 2024",56
+168,ETH,"Apr 14 – 20, 2024",55
+169,ETH,"Apr 21 – 27, 2024",47
+170,ETH,"Apr 28 – May 4, 2024",46
+171,ETH,"May 5 – 11, 2024",40
+172,ETH,"May 12 – 18, 2024",41
+173,ETH,"May 19 – 25, 2024",97
+174,ETH,"May 26 – Jun 1, 2024",61
+175,ETH,"Jun 2 – 8, 2024",51
+176,ETH,"Jun 9 – 15, 2024",47
+177,ETH,"Jun 16 – 22, 2024",45
+178,ETH,"Jun 23 – 29, 2024",41
+179,ETH,"Jun 30 – Jul 6, 2024",40
+180,ETH,"Jul 7 – 13, 2024",41
+181,ETH,"Jul 14 – 20, 2024",47
+182,ETH,"Jul 21 – 27, 2024",53
+183,ETH,"Jul 28 – Aug 3, 2024",42
+184,ETH,"Aug 4 – 10, 2024",60
+185,ETH,"Aug 11 – 17, 2024",40
+186,ETH,"Aug 18 – 24, 2024",40
+187,ETH,"Aug 25 – 31, 2024",40
+188,ETH,"Sep 1 – 7, 2024",40
+189,ETH,"Sep 8 – 14, 2024",37
+190,ETH,"Sep 15 – 21, 2024",39
+191,ETH,"Sep 22 – 28, 2024",41
+192,ETH,"Sep 29 – Oct 5, 2024",36
+193,ETH,"Oct 6 – 12, 2024",34
+194,ETH,"Oct 13 – 19, 2024",34
+195,ETH,"Oct 20 – 26, 2024",35
+196,ETH,"Oct 27 – Nov 2, 2024",40
+197,ETH,"Nov 3 – 9, 2024",53
+198,ETH,"Nov 10 – 16, 2024",81
+199,ETH,"Nov 17 – 23, 2024",71
+200,ETH,"Nov 24 – 30, 2024",63
+201,ETH,"Dec 1 – 7, 2024",80
+202,ETH,"Dec 8 – 14, 2024",73
+203,ETH,"Dec 15 – 21, 2024",68
+204,ETH,"Dec 22 – 28, 2024",50
+205,ETH,"Dec 29, 2024 – Jan 4, 2025",46
+206,ETH,"Jan 5 – 11, 2025",50
+207,ETH,"Jan 12 – 18, 2025",55
+208,ETH,"Jan 19 – 25, 2025",62
+209,ETH,"Jan 26 – Feb 1, 2025",51
+210,ETH,"Feb 2 – 8, 2025",68
+211,ETH,"Feb 9 – 15, 2025",46
+212,ETH,"Feb 16 – 22, 2025",50
+213,ETH,"Feb 23 – Mar 1, 2025",60
+214,ETH,"Mar 2 – 8, 2025",57
+215,ETH,"Mar 9 – 15, 2025",35
+216,ethereum,"Mar 3 – 9, 2024",100
+217,ethereum,"Mar 10 – 16, 2024",93
+218,ethereum,"Mar 17 – 23, 2024",68
+219,ethereum,"Mar 24 – 30, 2024",58
+220,ethereum,"Mar 31 – Apr 6, 2024",49
+221,ethereum,"Apr 7 – 13, 2024",49
+222,ethereum,"Apr 14 – 20, 2024",48
+223,ethereum,"Apr 21 – 27, 2024",39
+224,ethereum,"Apr 28 – May 4, 2024",39
+225,ethereum,"May 5 – 11, 2024",32
+226,ethereum,"May 12 – 18, 2024",33
+227,ethereum,"May 19 – 25, 2024",90
+228,ethereum,"May 26 – Jun 1, 2024",54
+229,ethereum,"Jun 2 – 8, 2024",47
+230,ethereum,"Jun 9 – 15, 2024",40
+231,ethereum,"Jun 16 – 22, 2024",36
+232,ethereum,"Jun 23 – 29, 2024",32
+233,ethereum,"Jun 30 – Jul 6, 2024",34
+234,ethereum,"Jul 7 – 13, 2024",34
+235,ethereum,"Jul 14 – 20, 2024",45
+236,ethereum,"Jul 21 – 27, 2024",49
+237,ethereum,"Jul 28 – Aug 3, 2024",39
+238,ethereum,"Aug 4 – 10, 2024",60
+239,ethereum,"Aug 11 – 17, 2024",37
+240,ethereum,"Aug 18 – 24, 2024",34
+241,ethereum,"Aug 25 – 31, 2024",35
+242,ethereum,"Sep 1 – 7, 2024",34
+243,ethereum,"Sep 8 – 14, 2024",31
+244,ethereum,"Sep 15 – 21, 2024",32
+245,ethereum,"Sep 22 – 28, 2024",31
+246,ethereum,"Sep 29 – Oct 5, 2024",26
+247,ethereum,"Oct 6 – 12, 2024",23
+248,ethereum,"Oct 13 – 19, 2024",25
+249,ethereum,"Oct 20 – 26, 2024",25
+250,ethereum,"Oct 27 – Nov 2, 2024",29
+251,ethereum,"Nov 3 – 9, 2024",52
+252,ethereum,"Nov 10 – 16, 2024",89
+253,ethereum,"Nov 17 – 23, 2024",74
+254,ethereum,"Nov 24 – 30, 2024",69
+255,ethereum,"Dec 1 – 7, 2024",86
+256,ethereum,"Dec 8 – 14, 2024",73
+257,ethereum,"Dec 15 – 21, 2024",71
+258,ethereum,"Dec 22 – 28, 2024",52
+259,ethereum,"Dec 29, 2024 – Jan 4, 2025",49
+260,ethereum,"Jan 5 – 11, 2025",46
+261,ethereum,"Jan 12 – 18, 2025",49
+262,ethereum,"Jan 19 – 25, 2025",59
+263,ethereum,"Jan 26 – Feb 1, 2025",45
+264,ethereum,"Feb 2 – 8, 2025",63
+265,ethereum,"Feb 9 – 15, 2025",39
+266,ethereum,"Feb 16 – 22, 2025",38
+267,ethereum,"Feb 23 – Mar 1, 2025",46
+268,ethereum,"Mar 2 – 8, 2025",51
+269,ethereum,"Mar 9 – 15, 2025",31
+270,cryptocurrency,"Mar 3 – 9, 2024",79
+271,cryptocurrency,"Mar 10 – 16, 2024",73
+272,cryptocurrency,"Mar 17 – 23, 2024",61
+273,cryptocurrency,"Mar 24 – 30, 2024",63
+274,cryptocurrency,"Mar 31 – Apr 6, 2024",52
+275,cryptocurrency,"Apr 7 – 13, 2024",51
+276,cryptocurrency,"Apr 14 – 20, 2024",50
+277,cryptocurrency,"Apr 21 – 27, 2024",45
+278,cryptocurrency,"Apr 28 – May 4, 2024",43
+279,cryptocurrency,"May 5 – 11, 2024",40
+280,cryptocurrency,"May 12 – 18, 2024",43
+281,cryptocurrency,"May 19 – 25, 2024",40
+282,cryptocurrency,"May 26 – Jun 1, 2024",43
+283,cryptocurrency,"Jun 2 – 8, 2024",41
+284,cryptocurrency,"Jun 9 – 15, 2024",44
+285,cryptocurrency,"Jun 16 – 22, 2024",39
+286,cryptocurrency,"Jun 23 – 29, 2024",39
+287,cryptocurrency,"Jun 30 – Jul 6, 2024",39
+288,cryptocurrency,"Jul 7 – 13, 2024",44
+289,cryptocurrency,"Jul 14 – 20, 2024",57
+290,cryptocurrency,"Jul 21 – 27, 2024",45
+291,cryptocurrency,"Jul 28 – Aug 3, 2024",42
+292,cryptocurrency,"Aug 4 – 10, 2024",43
+293,cryptocurrency,"Aug 11 – 17, 2024",41
+294,cryptocurrency,"Aug 18 – 24, 2024",40
+295,cryptocurrency,"Aug 25 – 31, 2024",41
+296,cryptocurrency,"Sep 1 – 7, 2024",43
+297,cryptocurrency,"Sep 8 – 14, 2024",38
+298,cryptocurrency,"Sep 15 – 21, 2024",43
+299,cryptocurrency,"Sep 22 – 28, 2024",42
+300,cryptocurrency,"Sep 29 – Oct 5, 2024",37
+301,cryptocurrency,"Oct 6 – 12, 2024",37
+302,cryptocurrency,"Oct 13 – 19, 2024",38
+303,cryptocurrency,"Oct 20 – 26, 2024",37
+304,cryptocurrency,"Oct 27 – Nov 2, 2024",37
+305,cryptocurrency,"Nov 3 – 9, 2024",52
+306,cryptocurrency,"Nov 10 – 16, 2024",79
+307,cryptocurrency,"Nov 17 – 23, 2024",75
+308,cryptocurrency,"Nov 24 – 30, 2024",72
+309,cryptocurrency,"Dec 1 – 7, 2024",100
+310,cryptocurrency,"Dec 8 – 14, 2024",85
+311,cryptocurrency,"Dec 15 – 21, 2024",69
+312,cryptocurrency,"Dec 22 – 28, 2024",62
+313,cryptocurrency,"Dec 29, 2024 – Jan 4, 2025",60
+314,cryptocurrency,"Jan 5 – 11, 2025",60
+315,cryptocurrency,"Jan 12 – 18, 2025",60
+316,cryptocurrency,"Jan 19 – 25, 2025",96
+317,cryptocurrency,"Jan 26 – Feb 1, 2025",66
+318,cryptocurrency,"Feb 2 – 8, 2025",67
+319,cryptocurrency,"Feb 9 – 15, 2025",71
+320,cryptocurrency,"Feb 16 – 22, 2025",97
+321,cryptocurrency,"Feb 23 – Mar 1, 2025",80
+322,cryptocurrency,"Mar 2 – 8, 2025",71
+323,cryptocurrency,"Mar 9 – 15, 2025",85
