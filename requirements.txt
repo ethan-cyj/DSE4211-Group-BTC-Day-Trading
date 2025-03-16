@@ -3,6 +3,7 @@ requests
 pandas
 numpy
 matplotlib
+praw
 telethon==1.36.0
 tqdm==4.67.1
 ollama==0.3.3
