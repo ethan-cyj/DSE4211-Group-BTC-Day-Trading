@@ -52,6 +52,9 @@ class Engine():
             # Run the strategy on the current bar 
             self.strategy.on_bar()
 
+            # Update exit orders (TP/SL) based on latest volatility 
+            self.update_exit_orders()
+
             # Update portfolio values: sum over all open positions
             total_position_value = sum([pos.size * self.data.loc[self.current_idx]['Close'] for pos in self.strategy.positions])
             self.cash_series[idx] = self.cash
@@ -163,9 +166,8 @@ class Engine():
                     self.strategy.positions.append(pos)
                     print(f"{self.current_idx} New position opened: {pos}")
 
-                    # Automatically create TP and SL orders for this position with default levels (e.g., 5% profit and 5% loss)
-                    tp_price = fill_price * 1.05
-                    sl_price = fill_price * 0.95
+                    # Calculate dynamic TP/SL levels based on volatility (e.g. ATR)
+                    tp_price, sl_price = self.strategy.calculate_tp_sl(fill_price, self.current_idx)
                     tp_order = Order(
                         ticker=order.ticker,
                         side='sell',
@@ -211,6 +213,10 @@ class Engine():
                     remaining_orders.append(order)
                 # Non-persistent orders that are not filled are dropped.
         self.strategy.orders = remaining_orders
+    
+    def update_exit_orders(self):
+        """Endpoint to update TP/SL orders dynamically based on latest volatility."""
+        self.strategy.update_exit_orders(self.current_idx)
 
     def _get_stats(self, asset_type='equities'):
         metrics = {}
@@ -361,6 +367,8 @@ class Strategy():
         self.orders = []
         self.trades = []
         self.positions = []  # Track open positions
+        self.tp_atr_multiplier = 1.0  # Multiplier for TP/SL levels in terms of ATR
+        self.sl_atr_multiplier = 1.0  # Multiplier for TP/SL levels in terms of ATR
 
     def close(self):
         return self.data.loc[self.current_idx]['Close']
@@ -436,6 +444,24 @@ class Strategy():
                 persistent=False
             )
         )
+
+    def calculate_tp_sl(self, fill_price, current_idx):
+        """
+        Dynamically calculate TP/SL prices based on a volatility measure.
+        Here we assume that your data contains an 'ATR' column.
+        If 'ATR' is not present, a default (5% of fill_price) is used.
+        """
+        atr = self.data.loc[current_idx].get('ATR', fill_price * 0.05)
+        tp_price = fill_price + self.tp_atr_multiplier * atr
+        sl_price = fill_price - self.sl_atr_multiplier * atr
+        return tp_price, sl_price
+
+    def update_exit_orders(self, current_idx):
+        """Update TP/SL orders for all open positions using the latest volatility."""
+        for pos in self.positions:
+            tp_price, sl_price = self.calculate_tp_sl(pos.entry_price, current_idx)
+            pos.tp_order.limit_price = tp_price
+            pos.sl_order.limit_price = sl_price
 
     def on_bar(self):
         """This should be overridden by your custom strategy logic."""
