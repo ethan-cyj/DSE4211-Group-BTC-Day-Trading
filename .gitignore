@@ -1,3 +1,17 @@
 .env
 scripts/tele_scrape_btc.session
 notebooks/test.csv
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.pyzw
+*.ipynb_checkpoints/
+*.sqlite3
+*.db
+*.sqlite
+*/__pycache__/
+*/__pycache__/*
