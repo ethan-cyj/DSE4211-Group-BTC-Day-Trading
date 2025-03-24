@@ -64,7 +64,7 @@ class Engine():
             try:
                 price = self.data.loc[self.current_idx]['Close']
                 total_value = self.cash + total_position_value
-                print(f"Index: {idx} | Cash: {self.cash:.2f} | Total position value: {total_position_value:.2f} | Total value: {total_value:.2f}")
+                #print(f"Index: {idx} | Cash: {self.cash:.2f} | Total position value: {total_position_value:.2f} | Total value: {total_value:.2f}")
             except Exception as e:
                 print(f"Error at index {idx}: {e}")
 
@@ -131,15 +131,15 @@ class Engine():
                                 fill_price = order.limit_price
                                 can_fill = True
                                 print(f"{self.current_idx} Take Profit Filled. Limit: {order.limit_price} / High: {self.data.loc[self.current_idx]['High']}")
-                            else:
-                                print(f"{self.current_idx} Take Profit Not Filled. Limit: {order.limit_price} / High: {self.data.loc[self.current_idx]['High']}")
+                            # else:
+                            #     print(f"{self.current_idx} Take Profit Not Filled. Limit: {order.limit_price} / High: {self.data.loc[self.current_idx]['High']}")
                         elif order.role == 'stop_loss':
                             if self.data.loc[self.current_idx]['Low'] <= order.limit_price:
                                 fill_price = order.limit_price
                                 can_fill = True
                                 print(f"{self.current_idx} Stop Loss Filled. Limit: {order.limit_price} / Low: {self.data.loc[self.current_idx]['Low']}")
-                            else:
-                                print(f"{self.current_idx} Stop Loss Not Filled. Limit: {order.limit_price} / Low: {self.data.loc[self.current_idx]['Low']}")
+                            # else:
+                            #     print(f"{self.current_idx} Stop Loss Not Filled. Limit: {order.limit_price} / Low: {self.data.loc[self.current_idx]['Low']}")
                     else:
                         can_fill = True
                 else:
@@ -272,6 +272,10 @@ class Engine():
         metrics['Number of Buys'] = len([t for t in self.strategy.trades if t.side == 'buy'])
         # Number of Sells
         metrics['Number of Sells'] = len([t for t in self.strategy.trades if t.side == 'sell'])
+        # Number of times took profit
+        metrics['Number of Take Profits'] = len([t for t in self.strategy.trades if t.role == 'take_profit'])
+        # Number of times stopped loss
+        metrics['Number of Stop Losses'] = len([t for t in self.strategy.trades if t.role == 'stop_loss'])
 
         # Print formatted results
         self.print_metrics(metrics)
