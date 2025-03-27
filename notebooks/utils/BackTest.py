@@ -459,14 +459,14 @@ class Strategy():
         atr = self.data.loc[current_idx].get('ATR', fill_price * 0.05)
         predicted_volatility_category =self.data.loc[current_idx].get('volatility_category', 'normal')
         if predicted_volatility_category == 'low':
-            self.tp_atr_multiplier = 2.0
-            self.sl_atr_multiplier = 1.0
+            self.tp_atr_multiplier = 1.00
+            self.sl_atr_multiplier = 0.25
         elif predicted_volatility_category == 'high':
-            self.tp_atr_multiplier = 3.5
-            self.sl_atr_multiplier = 2.5
+            self.tp_atr_multiplier = 4.00
+            self.sl_atr_multiplier = 1.00
         else:
-            self.tp_atr_multiplier = 2.5
-            self.sl_atr_multiplier = 1.5
+            self.tp_atr_multiplier = 2.00
+            self.sl_atr_multiplier = 0.50
         tp_price = fill_price + self.tp_atr_multiplier * atr
         sl_price = fill_price - self.sl_atr_multiplier * atr
         return tp_price, sl_price
