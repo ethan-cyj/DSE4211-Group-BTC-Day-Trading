@@ -23,13 +23,14 @@ class Position:
         return f"<Position: {self.ticker} size: {self.size} entry: {self.entry_price}>"
 
 class Engine():
-    def __init__(self, initial_cash=100_000, risk_free_rate=0):
+    def __init__(self, initial_cash=100_000, risk_free_rate=0, asset_type='equities'):
         self.strategy = None 
         self.cash = initial_cash
         self.initial_cash = initial_cash
         self.data = None 
         self.current_idx = None 
         self.risk_free_rate = risk_free_rate
+        self.asset_type = asset_type
         self.cash_series = {}
         self.stock_series = {}
 
@@ -68,7 +69,7 @@ class Engine():
             except Exception as e:
                 print(f"Error at index {idx}: {e}")
 
-        return self._get_stats()
+        return self._get_stats(self.asset_type)
 
     def _fill_orders(self):
         """
@@ -88,7 +89,7 @@ class Engine():
 
             # --- Entry Buy Orders ---
             if order.side == 'buy' and order.role == 'entry':
-                if self.cash >= self.data.loc[self.current_idx]['Open'] * order.size and len(self.strategy.positions) < 5:
+                if self.cash >= self.data.loc[self.current_idx]['Open'] * order.size and len(self.strategy.positions) < 20:
                     if order.order_type == "limit":
                         if order.limit_price >= self.data.loc[self.current_idx]['Low']:
                             fill_price = order.limit_price
@@ -99,8 +100,8 @@ class Engine():
                     else:
                         can_fill = True
                 else:
-                    if len(self.strategy.positions) >= 5:
-                        print(f"{self.current_idx} Buy Entry Not Filled. Maximum positions reached (5).")
+                    if len(self.strategy.positions) >= 10:
+                        print(f"{self.current_idx} Buy Entry Not Filled. Maximum positions reached (10).")
                     else:
                         print(f"{self.current_idx} Buy Entry Not Filled. Insufficient cash.")
             
@@ -371,7 +372,7 @@ class Strategy():
         self.orders = []
         self.trades = []
         self.positions = []  # Track open positions
-        self.tp_atr_multiplier = 1.0  # Multiplier for TP/SL levels in terms of ATR
+        self.tp_atr_multiplier = 2.0  # Multiplier for TP/SL levels in terms of ATR
         self.sl_atr_multiplier = 1.0  # Multiplier for TP/SL levels in terms of ATR
 
     def close(self):
@@ -390,7 +391,7 @@ class Strategy():
 
     def buy(self, ticker, size=1):
         # Only add an entry order if maximum positions not reached
-        if len(self.positions) < 5:
+        if len(self.positions) < 10:
             self.orders.append(
                 Order(
                     ticker=ticker,
@@ -456,6 +457,16 @@ class Strategy():
         If 'ATR' is not present, a default (5% of fill_price) is used.
         """
         atr = self.data.loc[current_idx].get('ATR', fill_price * 0.05)
+        predicted_volatility_category =self.data.loc[current_idx].get('volatility_category', 'normal')
+        if predicted_volatility_category == 'low':
+            self.tp_atr_multiplier = 2.0
+            self.sl_atr_multiplier = 1.0
+        elif predicted_volatility_category == 'high':
+            self.tp_atr_multiplier = 3.5
+            self.sl_atr_multiplier = 2.5
+        else:
+            self.tp_atr_multiplier = 2.5
+            self.sl_atr_multiplier = 1.5
         tp_price = fill_price + self.tp_atr_multiplier * atr
         sl_price = fill_price - self.sl_atr_multiplier * atr
         return tp_price, sl_price
