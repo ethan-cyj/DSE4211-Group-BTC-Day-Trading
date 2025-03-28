@@ -23,13 +23,15 @@ class Position:
         return f"<Position: {self.ticker} size: {self.size} entry: {self.entry_price}>"
 
 class Engine():
-    def __init__(self, initial_cash=100_000, risk_free_rate=0):
+    def __init__(self, initial_cash=100_000, risk_free_rate=0, transaction_cost=0.001, asset_type='equities'):
         self.strategy = None 
         self.cash = initial_cash
         self.initial_cash = initial_cash
         self.data = None 
         self.current_idx = None 
         self.risk_free_rate = risk_free_rate
+        self.transaction_cost = transaction_cost
+        self.asset_type = asset_type
         self.cash_series = {}
         self.stock_series = {}
 
@@ -68,7 +70,7 @@ class Engine():
             except Exception as e:
                 print(f"Error at index {idx}: {e}")
 
-        return self._get_stats()
+        return self._get_stats(self.asset_type)
 
     def _fill_orders(self):
         """
@@ -147,6 +149,7 @@ class Engine():
                     continue
 
             if can_fill:
+                transaction_fee = fill_price * order.size * self.transaction_cost
                 # Create trade object (recording the fill)
                 t = Trade(
                     ticker=order.ticker,
@@ -160,11 +163,11 @@ class Engine():
                 self.strategy.trades.append(t)
 
                 if order.side == 'buy' and order.role == 'entry':
-                    self.cash -= fill_price * order.size
+                    self.cash -= fill_price * order.size + transaction_fee
                     # Open a new position
                     pos = Position(ticker=order.ticker, size=order.size, entry_price=fill_price, entry_trade=t)
                     self.strategy.positions.append(pos)
-                    print(f"{self.current_idx} New position opened: {pos}")
+                    print(f"{self.current_idx} New position opened: {pos},transaction fee: {transaction_fee}")
 
                     # Calculate dynamic TP/SL levels based on volatility (e.g. ATR)
                     tp_price, sl_price = self.strategy.calculate_tp_sl(fill_price, self.current_idx)
@@ -203,8 +206,8 @@ class Engine():
                         pos = self.strategy.get_position(order.ticker)
                     if pos is not None and pos in self.strategy.positions:
                         self.strategy.positions.remove(pos)
-                        self.cash += fill_price * abs(pos.size)
-                        print(f"{self.current_idx} Position closed for ticker {pos.ticker} at {fill_price}")
+                        self.cash += fill_price * abs(pos.size) - transaction_fee
+                        print(f"{self.current_idx} Position closed for ticker {pos.ticker} at {fill_price}, transaction fee: {transaction_fee}")
                         # Do not add associated persistent orders (TP/SL) back
                 # Order is filled so we do not add it again (persistent orders that are filled get removed)
             else:
@@ -221,6 +224,27 @@ class Engine():
     def _get_stats(self, asset_type='equities'):
         metrics = {}
 
+        # Final return calculation: cash plus value of open positions, adjusted for transaction costs
+        total_position_value = sum([pos.size * self.data.loc[self.current_idx]['Close'] for pos in self.strategy.positions])
+        final_value = total_position_value + self.cash
+
+        # Adjust for transaction costs
+        transaction_costs = 0
+        for trade in self.strategy.trades:
+            if trade.side in ['buy', 'sell']:
+                # Ensure you are using the correct price for the trade
+                transaction_costs += abs(trade.size) * self.data.loc[trade.idx, 'Close'] * self.transaction_cost
+
+        # Assume a final trade is needed to close the last position (if any open position exists)
+        if len(self.strategy.positions) > 0:
+            # Simulate a final trade to close the last position at the current price
+            final_position = self.strategy.positions[-1]
+            transaction_costs += abs(final_position.size) * self.data.loc[self.current_idx, 'Close'] * self.transaction_cost
+
+        final_value -= transaction_costs
+        total_return = 100 * ((final_value / self.initial_cash) - 1)
+        metrics['Total Return (%)'] = total_return
+
         # Final return calculation: cash plus value of open positions
         total_position_value = sum([pos.size * self.data.loc[self.current_idx]['Close'] for pos in self.strategy.positions])
         final_value = total_position_value + self.cash
@@ -234,8 +258,27 @@ class Engine():
 
         # Buy-and-hold strategy (investing all initial cash at first open price)
         initial_price = self.data.loc[self.data.index[0], 'Open']
-        portfolio_bh = (self.initial_cash / initial_price) * self.data['Close']
+
+        # Adjust for transaction costs on the initial buy (assume buying at the first open price)
+        transaction_fee = self.initial_cash * self.transaction_cost
+        initial_investment = self.initial_cash - transaction_fee
+
+        # Buy-and-hold portfolio value over time, after transaction cost on initial buy
+        portfolio_bh = (initial_investment / initial_price) * self.data['Close']
         self.portfolio_bh = portfolio_bh
+
+        buy_and_hold_final_value = portfolio_bh.iloc[-1]
+
+        # Account for transaction cost when selling the final position
+        final_transaction_cost = buy_and_hold_final_value * self.transaction_cost
+
+        # Adjust Buy-and-Hold final value for the selling transaction cost
+        buy_and_hold_final_value -= final_transaction_cost
+
+        # Buy-and-Hold Total Return % adjusted for transaction cost
+        buy_and_hold_total_return = 100 * ((buy_and_hold_final_value / initial_investment) - 1)
+
+        metrics['Buy-and-Hold Total Return (%)'] = buy_and_hold_total_return
 
         # Average exposure to asset
         metrics['Average Exposure to Asset (%)'] = ((portfolio['stock'] / portfolio['total_aum']) * 100).mean()
@@ -371,8 +414,8 @@ class Strategy():
         self.orders = []
         self.trades = []
         self.positions = []  # Track open positions
-        self.tp_atr_multiplier = 1.0  # Multiplier for TP/SL levels in terms of ATR
-        self.sl_atr_multiplier = 1.0  # Multiplier for TP/SL levels in terms of ATR
+        self.tp_atr_multiplier = 6.0  # Multiplier for TP/SL levels in terms of ATR
+        self.sl_atr_multiplier = 3.0  # Multiplier for TP/SL levels in terms of ATR
 
     def close(self):
         return self.data.loc[self.current_idx]['Close']
@@ -456,6 +499,16 @@ class Strategy():
         If 'ATR' is not present, a default (5% of fill_price) is used.
         """
         atr = self.data.loc[current_idx].get('ATR', fill_price * 0.05)
+        # predicted_volatility_category =self.data.loc[current_idx].get('volatility_category', 'normal')
+        # if predicted_volatility_category == 'low':
+        #     self.tp_atr_multiplier = 2.00
+        #     self.sl_atr_multiplier = 2.00
+        # elif predicted_volatility_category == 'high':
+        #     self.tp_atr_multiplier = 4.00
+        #     self.sl_atr_multiplier = 4.00
+        # else:
+        #     self.tp_atr_multiplier = 3.00
+        #     self.sl_atr_multiplier = 3.00
         tp_price = fill_price + self.tp_atr_multiplier * atr
         sl_price = fill_price - self.sl_atr_multiplier * atr
         return tp_price, sl_price
