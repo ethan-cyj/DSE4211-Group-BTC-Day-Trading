@@ -414,8 +414,8 @@ class Strategy():
         self.orders = []
         self.trades = []
         self.positions = []  # Track open positions
-        self.tp_atr_multiplier = 6.0  # Multiplier for TP/SL levels in terms of ATR
-        self.sl_atr_multiplier = 3.0  # Multiplier for TP/SL levels in terms of ATR
+        self.tp_atr_multiplier = 2.0  # Multiplier for TP/SL levels in terms of ATR
+        self.sl_atr_multiplier = 1.0  # Multiplier for TP/SL levels in terms of ATR
 
     def close(self):
         return self.data.loc[self.current_idx]['Close']
