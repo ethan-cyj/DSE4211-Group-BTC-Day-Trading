@@ -90,7 +90,7 @@ class Engine():
 
             # --- Entry Buy Orders ---
             if order.side == 'buy' and order.role == 'entry':
-                if self.cash >= self.data.loc[self.current_idx]['Open'] * order.size and len(self.strategy.positions) < 10:
+                if self.cash >= self.data.loc[self.current_idx]['Open'] * order.size and len(self.strategy.positions) < 5:
                     if order.order_type == "limit":
                         if order.limit_price >= self.data.loc[self.current_idx]['Low']:
                             fill_price = order.limit_price
@@ -101,8 +101,8 @@ class Engine():
                     else:
                         can_fill = True
                 else:
-                    if len(self.strategy.positions) >= 10:
-                        print(f"{self.current_idx} Buy Entry Not Filled. Maximum positions reached (10).")
+                    if len(self.strategy.positions) >= 5:
+                        print(f"{self.current_idx} Buy Entry Not Filled. Maximum positions reached (5).")
                     else:
                         print(f"{self.current_idx} Buy Entry Not Filled. Insufficient cash.")
             
@@ -258,8 +258,27 @@ class Engine():
 
         # Buy-and-hold strategy (investing all initial cash at first open price)
         initial_price = self.data.loc[self.data.index[0], 'Open']
-        portfolio_bh = (self.initial_cash / initial_price) * self.data['Close']
+
+        # Adjust for transaction costs on the initial buy (assume buying at the first open price)
+        transaction_fee = self.initial_cash * self.transaction_cost
+        initial_investment = self.initial_cash - transaction_fee
+
+        # Buy-and-hold portfolio value over time, after transaction cost on initial buy
+        portfolio_bh = (initial_investment / initial_price) * self.data['Close']
         self.portfolio_bh = portfolio_bh
+
+        buy_and_hold_final_value = portfolio_bh.iloc[-1]
+
+        # Account for transaction cost when selling the final position
+        final_transaction_cost = buy_and_hold_final_value * self.transaction_cost
+
+        # Adjust Buy-and-Hold final value for the selling transaction cost
+        buy_and_hold_final_value -= final_transaction_cost
+
+        # Buy-and-Hold Total Return % adjusted for transaction cost
+        buy_and_hold_total_return = 100 * ((buy_and_hold_final_value / initial_investment) - 1)
+
+        metrics['Buy-and-Hold Total Return (%)'] = buy_and_hold_total_return
 
         # Average exposure to asset
         metrics['Average Exposure to Asset (%)'] = ((portfolio['stock'] / portfolio['total_aum']) * 100).mean()
@@ -395,8 +414,8 @@ class Strategy():
         self.orders = []
         self.trades = []
         self.positions = []  # Track open positions
-        self.tp_atr_multiplier = 2.0  # Multiplier for TP/SL levels in terms of ATR
-        self.sl_atr_multiplier = 1.0  # Multiplier for TP/SL levels in terms of ATR
+        self.tp_atr_multiplier = 6.0  # Multiplier for TP/SL levels in terms of ATR
+        self.sl_atr_multiplier = 3.0  # Multiplier for TP/SL levels in terms of ATR
 
     def close(self):
         return self.data.loc[self.current_idx]['Close']
@@ -414,7 +433,7 @@ class Strategy():
 
     def buy(self, ticker, size=1):
         # Only add an entry order if maximum positions not reached
-        if len(self.positions) < 10:
+        if len(self.positions) < 5:
             self.orders.append(
                 Order(
                     ticker=ticker,
@@ -480,16 +499,16 @@ class Strategy():
         If 'ATR' is not present, a default (5% of fill_price) is used.
         """
         atr = self.data.loc[current_idx].get('ATR', fill_price * 0.05)
-        predicted_volatility_category =self.data.loc[current_idx].get('volatility_category', 'normal')
-        if predicted_volatility_category == 'low':
-            self.tp_atr_multiplier = 0.75
-            self.sl_atr_multiplier = 0.25
-        elif predicted_volatility_category == 'high':
-            self.tp_atr_multiplier = 3.00
-            self.sl_atr_multiplier = 1.00
-        else:
-            self.tp_atr_multiplier = 1.50
-            self.sl_atr_multiplier = 0.50
+        # predicted_volatility_category =self.data.loc[current_idx].get('volatility_category', 'normal')
+        # if predicted_volatility_category == 'low':
+        #     self.tp_atr_multiplier = 2.00
+        #     self.sl_atr_multiplier = 2.00
+        # elif predicted_volatility_category == 'high':
+        #     self.tp_atr_multiplier = 4.00
+        #     self.sl_atr_multiplier = 4.00
+        # else:
+        #     self.tp_atr_multiplier = 3.00
+        #     self.sl_atr_multiplier = 3.00
         tp_price = fill_price + self.tp_atr_multiplier * atr
         sl_price = fill_price - self.sl_atr_multiplier * atr
         return tp_price, sl_price
