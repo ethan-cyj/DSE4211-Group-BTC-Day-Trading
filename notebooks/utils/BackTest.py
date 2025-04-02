@@ -1,39 +1,87 @@
-import seaborn as sns
 import matplotlib.pyplot as plt
-plt.rcParams['figure.figsize'] = [20, 12]
-
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 
-import pandas as pd 
-from tqdm import tqdm 
+import pandas as pd
+from tqdm import tqdm
 import numpy as np
 
+# -----------------------------------------------------------------------
+# Position, Trade, Order Classes
+# -----------------------------------------------------------------------
 class Position:
-    """Represents an open trading position with associated take profit and stop loss orders."""
+    """
+    Represents a net trading position for a specific ticker.
+    'size' can be positive (long) or negative (short).
+    """
     def __init__(self, ticker, size, entry_price, entry_trade):
         self.ticker = ticker
-        self.size = size
+        self.size = size      # net size: +1, +2, ... up to +5; or -1, -2, ... down to -5
         self.entry_price = entry_price
         self.entry_trade = entry_trade
-        self.tp_order = None
-        self.sl_order = None
 
     def __repr__(self):
         return f"<Position: {self.ticker} size: {self.size} entry: {self.entry_price}>"
 
-class Engine():
+class Trade:
+    """Trade objects are created when an order is filled."""
+    def __init__(self, ticker, side, size, price, order_type, idx, role):
+        self.ticker = ticker
+        self.side = side       # 'buy' or 'sell'
+        self.size = size
+        self.price = price
+        self.order_type = order_type
+        self.idx = idx
+        self.role = role       # 'entry' in this simplified version
+
+    def __repr__(self):
+        return f"<Trade: {self.idx} {self.ticker} {self.size}@{self.price} Role:{self.role}>"
+
+class Order:
+    """
+    Order objects represent intended transactions.
+    - side: 'buy' or 'sell'
+    - role: 'entry' (in this version, no more 'take_profit'/'stop_loss')
+    - order_type: 'market' or 'limit'
+    - persistent: always False in this version (no more persistent TP/SL)
+    """
+    def __init__(self, ticker, side, size, idx, limit_price=None, order_type='market',
+                 role='entry', persistent=False):
+        self.ticker = ticker
+        self.side = side
+        self.size = size
+        self.order_type = order_type
+        self.idx = idx
+        self.limit_price = limit_price
+        self.role = role  # 'entry'
+        self.persistent = persistent  # no-op now
+        self.parent_position = None   # no-op now
+
+    def __repr__(self):
+        return (f"<Order: {self.idx} {self.ticker} {self.side} {self.size} "
+                f"{self.order_type} Role:{self.role} Persistent:{self.persistent}>")
+
+# -----------------------------------------------------------------------
+# Engine
+# -----------------------------------------------------------------------
+class Engine:
     def __init__(self, initial_cash=100_000, risk_free_rate=0, transaction_cost=0.001, asset_type='equities'):
-        self.strategy = None 
+        self.strategy = None
         self.cash = initial_cash
         self.initial_cash = initial_cash
-        self.data = None 
-        self.current_idx = None 
+        self.data = None
+        self.current_idx = None
         self.risk_free_rate = risk_free_rate
         self.transaction_cost = transaction_cost
         self.asset_type = asset_type
+
+        # We'll track each day's (or bar's) portfolio value
         self.cash_series = {}
         self.stock_series = {}
+
+        self.portfolio = None      # will store final DF with 'stock', 'cash', 'total_aum'
+        self.portfolio_bh = None   # buy-and-hold comparison
+        self.trading_days = 252 if asset_type == 'equities' else 365
 
     def add_data(self, data: pd.DataFrame):
         self.data = data
@@ -48,295 +96,268 @@ class Engine():
         for idx in tqdm(self.data.index):
             self.current_idx = idx
             self.strategy.current_idx = self.current_idx
-            # Fill orders from previous periods (persistent TP/SL orders are retained)
+
+            # Fill any outstanding orders from previous bar
             self._fill_orders()
 
-            # Run the strategy on the current bar 
+            # Execute strategy logic on this bar
             self.strategy.on_bar()
 
-            # Update exit orders (TP/SL) based on latest volatility 
+            # In this version, we no longer do dynamic TP/SL updates, but you can keep the call if you want:
             self.update_exit_orders()
 
-            # Update portfolio values: sum over all open positions
-            total_position_value = sum([pos.size * self.data.loc[self.current_idx]['Close'] for pos in self.strategy.positions])
+            # Update the portfolio values
+            total_position_value = 0
+            for pos in self.strategy.positions:
+                # Use the bar's closing price to compute position value
+                price = self.data.loc[self.current_idx]['Close']
+                total_position_value += pos.size * price
+
+            # Save portfolio states
             self.cash_series[idx] = self.cash
             self.stock_series[idx] = total_position_value
 
-            # --- Print portfolio info ---
-            try:
-                price = self.data.loc[self.current_idx]['Close']
-                total_value = self.cash + total_position_value
-                #print(f"Index: {idx} | Cash: {self.cash:.2f} | Total position value: {total_position_value:.2f} | Total value: {total_value:.2f}")
-            except Exception as e:
-                print(f"Error at index {idx}: {e}")
-
+        # Final performance stats
         return self._get_stats(self.asset_type)
 
     def _fill_orders(self):
         """
-        Process orders based on current bar data.
-        
-        - Entry buy orders are filled if cash is sufficient and fewer than 5 positions are open.
-        - When an entry order fills, a new position is created and two persistent TP/SL orders (default 5% levels) 
-          are automatically generated and added.
-        - For TP/SL orders, if the market price meets the condition, the order fills and the corresponding 
-          position is closed.
-        - Orders that are persistent (TP/SL) remain in the order list until filled.
+        Process all outstanding orders placed by the Strategy in the previous bar:
+          - For 'buy' orders, if there's enough cash, we update or create the position.
+            Net size is capped at +5.
+          - For 'sell' orders, we update or create the position in the negative direction.
+            Net size is capped at -5.
         """
         remaining_orders = []
+        open_price = self.data.loc[self.current_idx]['Open']
+        low_price = self.data.loc[self.current_idx]['Low']
+        high_price = self.data.loc[self.current_idx]['High']
+
         for order in self.strategy.orders:
-            fill_price = self.data.loc[self.current_idx]['Open']
+            # Attempt to fill order
+            fill_price = open_price
             can_fill = False
 
-            # --- Entry Buy Orders ---
-            if order.side == 'buy' and order.role == 'entry':
-                if self.cash >= self.data.loc[self.current_idx]['Open'] * order.size and len(self.strategy.positions) < 5:
-                    if order.order_type == "limit":
-                        if order.limit_price >= self.data.loc[self.current_idx]['Low']:
-                            fill_price = order.limit_price
-                            can_fill = True
-                            print(f"{self.current_idx} Buy Entry Filled. Limit: {order.limit_price} / Low: {self.data.loc[self.current_idx]['Low']}")
-                        else:
-                            print(f"{self.current_idx} Buy Entry Not Filled. Limit: {order.limit_price} / Low: {self.data.loc[self.current_idx]['Low']}")
-                    else:
+            # Check order type (market or limit)
+            if order.order_type == 'market':
+                # Always fill at the open price
+                fill_price = open_price
+                can_fill = True
+            elif order.order_type == 'limit':
+                # For a 'buy limit', fill if the market's Low <= limit_price
+                # For a 'sell limit', fill if the market's High >= limit_price
+                if order.side == 'buy':
+                    if low_price <= order.limit_price:
+                        fill_price = order.limit_price
                         can_fill = True
                 else:
-                    if len(self.strategy.positions) >= 5:
-                        print(f"{self.current_idx} Buy Entry Not Filled. Maximum positions reached (5).")
-                    else:
-                        print(f"{self.current_idx} Buy Entry Not Filled. Insufficient cash.")
-            
-            # --- Manual Exit (Entry Sell Orders) ---
-            elif order.side == 'sell' and order.role == 'entry':
-                pos = self.strategy.get_position(order.ticker)
-                if pos is not None:
-                    if order.order_type == "limit":
-                        if self.data.loc[self.current_idx]['High'] >= order.limit_price:
-                            fill_price = order.limit_price
-                            can_fill = True
-                            print(f"{self.current_idx} Manual Exit Filled. Limit: {order.limit_price} / High: {self.data.loc[self.current_idx]['High']}")
-                        else:
-                            print(f"{self.current_idx} Manual Exit Not Filled. Limit: {order.limit_price} / High: {self.data.loc[self.current_idx]['High']}")
-                    else:
+                    # side == 'sell'
+                    if high_price >= order.limit_price:
+                        fill_price = order.limit_price
                         can_fill = True
-                else:
-                    print(f"{self.current_idx} Manual Exit Order ignored. No open position for ticker {order.ticker}.")
 
-            # --- Take Profit and Stop Loss Orders (Sell Orders to close position) ---
-            elif order.side == 'sell' and order.role in ['take_profit', 'stop_loss']:
-                pos = order.parent_position
-                # Only process if the position is still open
-                if pos in self.strategy.positions:
-                    if order.order_type == "limit":
-                        if order.role == 'take_profit':
-                            if self.data.loc[self.current_idx]['High'] >= order.limit_price:
-                                fill_price = order.limit_price
-                                can_fill = True
-                                print(f"{self.current_idx} Take Profit Filled. Limit: {order.limit_price} / High: {self.data.loc[self.current_idx]['High']}")
-                            # else:
-                            #     print(f"{self.current_idx} Take Profit Not Filled. Limit: {order.limit_price} / High: {self.data.loc[self.current_idx]['High']}")
-                        elif order.role == 'stop_loss':
-                            if self.data.loc[self.current_idx]['Low'] <= order.limit_price:
-                                fill_price = order.limit_price
-                                can_fill = True
-                                print(f"{self.current_idx} Stop Loss Filled. Limit: {order.limit_price} / Low: {self.data.loc[self.current_idx]['Low']}")
-                            # else:
-                            #     print(f"{self.current_idx} Stop Loss Not Filled. Limit: {order.limit_price} / Low: {self.data.loc[self.current_idx]['Low']}")
-                    else:
-                        can_fill = True
-                else:
-                    # Position already closed, skip order
-                    continue
-
+            # If we can fill, compute fees and adjust positions
             if can_fill:
                 transaction_fee = fill_price * order.size * self.transaction_cost
-                # Create trade object (recording the fill)
-                t = Trade(
-                    ticker=order.ticker,
-                    side=order.side,
-                    size=order.size,
-                    price=fill_price,
-                    order_type=order.order_type,
-                    idx=self.current_idx,
-                    role=order.role
-                )
-                self.strategy.trades.append(t)
 
-                if order.side == 'buy' and order.role == 'entry':
-                    self.cash -= fill_price * order.size + transaction_fee
-                    # Open a new position
-                    pos = Position(ticker=order.ticker, size=order.size, entry_price=fill_price, entry_trade=t)
-                    self.strategy.positions.append(pos)
-                    print(f"{self.current_idx} New position opened: {pos},transaction fee: {transaction_fee}")
+                # If it's a buy, we are pushing net position up
+                if order.side == 'buy':
+                    pos = self.strategy.get_position(order.ticker)
 
-                    # Calculate dynamic TP/SL levels based on volatility (e.g. ATR)
-                    tp_price, sl_price = self.strategy.calculate_tp_sl(fill_price, self.current_idx)
-                    tp_order = Order(
-                        ticker=order.ticker,
-                        side='sell',
-                        size=order.size,
-                        idx=self.current_idx,
-                        limit_price=tp_price,
-                        order_type='limit',
-                        role='take_profit',
-                        persistent=True
-                    )
-                    sl_order = Order(
-                        ticker=order.ticker,
-                        side='sell',
-                        size=order.size,
-                        idx=self.current_idx,
-                        limit_price=sl_price,
-                        order_type='limit',
-                        role='stop_loss',
-                        persistent=True
-                    )
-                    # Link these orders to the newly opened position
-                    tp_order.parent_position = pos
-                    sl_order.parent_position = pos
-                    pos.tp_order = tp_order
-                    pos.sl_order = sl_order
-                    remaining_orders.extend([tp_order, sl_order])
+                    if pos is None:
+                        # No existing position => create a new one
+                        net_desired_size = min(order.size, 5)  # cannot exceed +5
+                        cost_to_buy = fill_price * net_desired_size + transaction_fee
+                        if self.cash >= cost_to_buy:
+                            self.cash -= cost_to_buy
+                            new_pos = Position(order.ticker, net_desired_size, fill_price, None)
+                            self.strategy.positions.append(new_pos)
+                            self.strategy.trades.append(
+                                Trade(order.ticker, 'buy', net_desired_size,
+                                      fill_price, order.order_type, self.current_idx, order.role)
+                            )
+                        else:
+                            print(f"{self.current_idx} Not enough cash to open new long position.")
+                    else:
+                        # We already have a position, possibly negative or positive
+                        current_size = pos.size
+                        net_desired_size = current_size + order.size
+                        if net_desired_size > 5:
+                            net_desired_size = 5  # cap at +5
+
+                        size_change = net_desired_size - current_size
+                        if size_change > 0:
+                            # Increase net size
+                            cost_to_buy = fill_price * size_change + transaction_fee
+                            if self.cash >= cost_to_buy:
+                                self.cash -= cost_to_buy
+                                pos.size = net_desired_size
+                                self.strategy.trades.append(
+                                    Trade(order.ticker, 'buy', size_change,
+                                          fill_price, order.order_type, self.current_idx, order.role)
+                                )
+                            else:
+                                print(f"{self.current_idx} Not enough cash to buy additional size.")
+
+                        elif size_change < 0:
+                            # This effectively closes or reverses part of the position.
+                            # size_change < 0 => we are 'selling' in net terms,
+                            # but the order is a 'buy' method. Usually you'd handle partial reversing
+                            # by calling Strategy.sell(...) to reduce a long or build a short.
+                            pass
+
+                # If it's a sell, we are pushing net position down
                 elif order.side == 'sell':
-                    # For exit orders (manual exit or TP/SL), close the corresponding position
-                    pos = None
-                    if order.role in ['take_profit', 'stop_loss']:
-                        pos = order.parent_position
-                    elif order.role == 'entry':
-                        pos = self.strategy.get_position(order.ticker)
-                    if pos is not None and pos in self.strategy.positions:
-                        self.strategy.positions.remove(pos)
-                        self.cash += fill_price * abs(pos.size) - transaction_fee
-                        print(f"{self.current_idx} Position closed for ticker {pos.ticker} at {fill_price}, transaction fee: {transaction_fee}")
-                        # Do not add associated persistent orders (TP/SL) back
-                # Order is filled so we do not add it again (persistent orders that are filled get removed)
-            else:
-                # For persistent orders (TP/SL), keep them for future ticks.
-                if order.persistent:
-                    remaining_orders.append(order)
-                # Non-persistent orders that are not filled are dropped.
+                    pos = self.strategy.get_position(order.ticker)
+
+                    if pos is None:
+                        # No existing position => open a new short
+                        net_desired_size = -min(order.size, 5)  # go negative, up to -5
+                        proceeds = fill_price * abs(net_desired_size) - transaction_fee
+                        # For a short, you might track margin, etc. We'll assume no additional constraints:
+                        self.cash += proceeds
+                        new_pos = Position(order.ticker, net_desired_size, fill_price, None)
+                        self.strategy.positions.append(new_pos)
+                        self.strategy.trades.append(
+                            Trade(order.ticker, 'sell', net_desired_size,
+                                  fill_price, order.order_type, self.current_idx, order.role)
+                        )
+                    else:
+                        # Already have a position
+                        current_size = pos.size
+                        net_desired_size = current_size - order.size  # move in negative direction
+                        if net_desired_size < -5:
+                            net_desired_size = -5  # cap at -5
+
+                        size_change = net_desired_size - current_size
+                        if size_change < 0:
+                            # Increase the short or reduce a long
+                            proceeds = fill_price * abs(size_change) - transaction_fee
+                            self.cash += proceeds
+                            pos.size = net_desired_size
+                            self.strategy.trades.append(
+                                Trade(order.ticker, 'sell', size_change,
+                                      fill_price, order.order_type, self.current_idx, order.role)
+                            )
+                        elif size_change > 0:
+                            # This effectively closes or reduces a short
+                            # but the signal is 'sell'. Typically you'd handle that with a 'buy' call
+                            # if you want to reduce short. We'll keep it no-op in this example.
+                            pass
+
+                else:
+                    # Should never happen (only 'buy' or 'sell')
+                    pass
+
+            # If order not filled, and it's not persistent, we simply drop it
+            # (in this simplified version, persistent is always False)
+            # so we do nothing.
+
+        # Clear out the old orders
         self.strategy.orders = remaining_orders
-    
+
     def update_exit_orders(self):
-        """Endpoint to update TP/SL orders dynamically based on latest volatility."""
-        self.strategy.update_exit_orders(self.current_idx)
+        """
+        In the old code, you updated TP/SL dynamically here.
+        Now it's a no-op, but you can keep it if you want to do
+        other tasks each bar.
+        """
+        pass
 
     def _get_stats(self, asset_type='equities'):
+        """
+        Compute final metrics and portfolio stats.
+        """
         metrics = {}
 
-        # Final return calculation: cash plus value of open positions, adjusted for transaction costs
-        total_position_value = sum([pos.size * self.data.loc[self.current_idx]['Close'] for pos in self.strategy.positions])
-        final_value = total_position_value + self.cash
+        # Final portfolio value includes net positions at final close:
+        total_position_value = 0
+        final_price = self.data.loc[self.current_idx, 'Close']
+        for pos in self.strategy.positions:
+            total_position_value += pos.size * final_price
 
-        # Adjust for transaction costs
-        transaction_costs = 0
-        for trade in self.strategy.trades:
-            if trade.side in ['buy', 'sell']:
-                # Ensure you are using the correct price for the trade
-                transaction_costs += abs(trade.size) * self.data.loc[trade.idx, 'Close'] * self.transaction_cost
+        final_value = self.cash + total_position_value
 
-        # Assume a final trade is needed to close the last position (if any open position exists)
-        if len(self.strategy.positions) > 0:
-            # Simulate a final trade to close the last position at the current price
-            final_position = self.strategy.positions[-1]
-            transaction_costs += abs(final_position.size) * self.data.loc[self.current_idx, 'Close'] * self.transaction_cost
-
-        final_value -= transaction_costs
-        total_return = 100 * ((final_value / self.initial_cash) - 1)
+        # Transaction costs are already subtracted from self.cash whenever we traded,
+        # so final_value is already net of transaction costs in this simplified approach.
+        total_return = 100.0 * (final_value / self.initial_cash - 1.0)
         metrics['Total Return (%)'] = total_return
 
-        # Final return calculation: cash plus value of open positions
-        total_position_value = sum([pos.size * self.data.loc[self.current_idx]['Close'] for pos in self.strategy.positions])
-        final_value = total_position_value + self.cash
-        total_return = 100 * ((final_value / self.initial_cash) - 1)
-        metrics['Total Return (%)'] = total_return
-
-        # Strategy portfolio over time
+        # Build daily portfolio time series
         portfolio = pd.DataFrame({'stock': self.stock_series, 'cash': self.cash_series})
         portfolio['total_aum'] = portfolio['stock'] + portfolio['cash']
         self.portfolio = portfolio
 
-        # Buy-and-hold strategy (investing all initial cash at first open price)
-        initial_price = self.data.loc[self.data.index[0], 'Open']
-
-        # Adjust for transaction costs on the initial buy (assume buying at the first open price)
+        # Buy-and-hold: invests all initial cash at first open price
+        initial_price = self.data.iloc[0]['Open']
         transaction_fee = self.initial_cash * self.transaction_cost
         initial_investment = self.initial_cash - transaction_fee
-
-        # Buy-and-hold portfolio value over time, after transaction cost on initial buy
         portfolio_bh = (initial_investment / initial_price) * self.data['Close']
-        self.portfolio_bh = portfolio_bh
-
         buy_and_hold_final_value = portfolio_bh.iloc[-1]
 
-        # Account for transaction cost when selling the final position
+        # Subtract a transaction cost when "selling" at the end
         final_transaction_cost = buy_and_hold_final_value * self.transaction_cost
-
-        # Adjust Buy-and-Hold final value for the selling transaction cost
         buy_and_hold_final_value -= final_transaction_cost
-
-        # Buy-and-Hold Total Return % adjusted for transaction cost
-        buy_and_hold_total_return = 100 * ((buy_and_hold_final_value / initial_investment) - 1)
-
-        metrics['Buy-and-Hold Total Return (%)'] = buy_and_hold_total_return
+        buy_and_hold_return = 100.0 * (buy_and_hold_final_value / initial_investment - 1.0)
+        metrics['Buy-and-Hold Total Return (%)'] = buy_and_hold_return
 
         # Average exposure to asset
-        metrics['Average Exposure to Asset (%)'] = ((portfolio['stock'] / portfolio['total_aum']) * 100).mean()
+        portfolio['pct_exposure'] = 100.0 * portfolio['stock'] / portfolio['total_aum']
+        metrics['Average Exposure to Asset (%)'] = portfolio['pct_exposure'].mean()
 
         # Strategy CAGR
         p = portfolio['total_aum']
         days_diff = (p.index[-1] - p.index[0]).days if isinstance(p.index[-1], pd.Timestamp) else (p.index[-1] - p.index[0])
-        metrics['Strategy CAGR (%)'] = ((p.iloc[-1] / p.iloc[0]) ** (1 / (days_diff / 365)) - 1) * 100
+        years = days_diff / self.trading_days if self.trading_days else 1
+        if years <= 0:
+            years = 1
+        cagr = (p.iloc[-1] / p.iloc[0]) ** (1 / years) - 1
+        metrics['Strategy CAGR (%)'] = 100.0 * cagr
 
-        # Buy-and-hold CAGR
+        # B&H CAGR
         p_bh = portfolio_bh
         days_diff_bh = (p_bh.index[-1] - p_bh.index[0]).days if isinstance(p_bh.index[-1], pd.Timestamp) else (p_bh.index[-1] - p_bh.index[0])
-        metrics['Buy & Hold CAGR (%)'] = ((p_bh.iloc[-1] / p_bh.iloc[0]) ** (1 / (days_diff_bh / 365)) - 1) * 100
-
-        # Determine trading days based on asset type
-        self.trading_days = 252 if asset_type == 'equities' else 365
+        years_bh = days_diff_bh / self.trading_days if self.trading_days else 1
+        if years_bh <= 0:
+            years_bh = 1
+        cagr_bh = (p_bh.iloc[-1] / p_bh.iloc[0]) ** (1 / years_bh) - 1
+        metrics['Buy & Hold CAGR (%)'] = 100.0 * cagr_bh
 
         # Annualized volatility
-        metrics['Strategy Volatility (%)'] = p.pct_change().std() * np.sqrt(self.trading_days) * 100
-        metrics['Buy & Hold Volatility (%)'] = portfolio_bh.pct_change().std() * np.sqrt(self.trading_days) * 100
+        strategy_vol = p.pct_change().std() * np.sqrt(self.trading_days) * 100
+        bh_vol = p_bh.pct_change().std() * np.sqrt(self.trading_days) * 100
+        metrics['Strategy Volatility (%)'] = strategy_vol
+        metrics['Buy & Hold Volatility (%)'] = bh_vol
 
-        # Sharpe Ratios
+        # Sharpe Ratio
         rf = self.risk_free_rate
-        metrics['Strategy Sharpe Ratio'] = (metrics['Strategy CAGR (%)'] - rf) / metrics['Strategy Volatility (%)']
-        metrics['Buy & Hold Sharpe Ratio'] = (metrics['Buy & Hold CAGR (%)'] - rf) / metrics['Buy & Hold Volatility (%)']
+        metrics['Strategy Sharpe Ratio'] = (metrics['Strategy CAGR (%)'] - rf) / (strategy_vol if strategy_vol else 1e-9)
+        metrics['Buy & Hold Sharpe Ratio'] = (metrics['Buy & Hold CAGR (%)'] - rf) / (bh_vol if bh_vol else 1e-9)
 
-        # Maximum Drawdowns
+        # Max Drawdowns
         metrics['Strategy Max Drawdown (%)'] = self.get_max_drawdown(p)
-        metrics['Buy & Hold Max Drawdown (%)'] = self.get_max_drawdown(portfolio_bh)
+        metrics['Buy & Hold Max Drawdown (%)'] = self.get_max_drawdown(p_bh)
 
         # Number of trades
         metrics['Number of Trades'] = len(self.strategy.trades)
-        # Number of Buys
         metrics['Number of Buys'] = len([t for t in self.strategy.trades if t.side == 'buy'])
-        # Number of Sells
         metrics['Number of Sells'] = len([t for t in self.strategy.trades if t.side == 'sell'])
-        # Number of times took profit
-        metrics['Number of Take Profits'] = len([t for t in self.strategy.trades if t.role == 'take_profit'])
-        # Number of times stopped loss
-        metrics['Number of Stop Losses'] = len([t for t in self.strategy.trades if t.role == 'stop_loss'])
 
-        # Print formatted results
         self.print_metrics(metrics)
-
         return metrics
+
+    @staticmethod
+    def get_max_drawdown(series):
+        roll_max = series.cummax()
+        daily_drawdown = series / roll_max - 1.0
+        max_drawdown = daily_drawdown.cummin().min() * 100
+        return max_drawdown
 
     def print_metrics(self, metrics):
         print(f"{'Metric':40} | {'Value':>10}")
         print("-" * 55)
-        for key, value in metrics.items():
-            print(f"{key:40} | {value:10.2f}")
-
-    @staticmethod
-    def get_max_drawdown(close):
-        roll_max = close.cummax()
-        daily_drawdown = close / roll_max - 1.0
-        max_daily_drawdown = daily_drawdown.cummin()
-        return max_daily_drawdown.min() * 100
+        for k, v in metrics.items():
+            print(f"{k:40} | {v:10.2f}")
 
     def plot(self, show_signals=True):
         fig = go.Figure()
@@ -346,49 +367,44 @@ class Engine():
             x=self.portfolio.index,
             y=self.portfolio['total_aum'],
             mode='lines',
-            name='Strategy',
-            line=dict(color='blue')
+            name='Strategy'
         ))
 
-        # Buy & Hold AUM
+        # Buy & Hold
         fig.add_trace(go.Scatter(
             x=self.portfolio_bh.index,
             y=self.portfolio_bh,
             mode='lines',
-            name='Buy & Hold',
-            line=dict(dash='dash', color='gray')
+            name='Buy & Hold'
         ))
 
-        # Buy/Sell signals from trades
         if show_signals and hasattr(self.strategy, 'trades'):
             trades = self.strategy.trades
             buy_trades = [(t.idx, t.price) for t in trades if t.side == 'buy']
             sell_trades = [(t.idx, t.price) for t in trades if t.side == 'sell']
-            if buy_trades:
+
+            if len(buy_trades) > 0:
                 buy_dates, buy_prices = zip(*buy_trades)
                 fig.add_trace(go.Scatter(
                     x=buy_dates, y=buy_prices,
                     mode='markers',
                     name='Buy',
-                    marker=dict(symbol='triangle-up', size=10, color='green'),
-                    showlegend=False
+                    marker=dict(symbol='triangle-up', size=10)
                 ))
-            if sell_trades:
+
+            if len(sell_trades) > 0:
                 sell_dates, sell_prices = zip(*sell_trades)
                 fig.add_trace(go.Scatter(
                     x=sell_dates, y=sell_prices,
                     mode='markers',
                     name='Sell',
-                    marker=dict(symbol='triangle-down', size=10, color='red'),
-                    showlegend=False
+                    marker=dict(symbol='triangle-down', size=10)
                 ))
 
         fig.update_layout(
-            title='Interactive Portfolio Performance',
+            title='Strategy vs. Buy & Hold',
             xaxis_title='Date',
-            yaxis_title='Value',
-            template='plotly_white',
-            legend=dict(x=0.01, y=0.99),
+            yaxis_title='Portfolio Value',
             hovermode='x unified',
             xaxis=dict(
                 rangeselector=dict(
@@ -402,160 +418,80 @@ class Engine():
                 type='date'
             )
         )
-
         fig.show()
 
-class Strategy():
-    """This base class will handle the execution logic of our trading strategies."""
+# -----------------------------------------------------------------------
+# Strategy (Base Class)
+# -----------------------------------------------------------------------
+class Strategy:
+    """
+    Base strategy class.
+    We now rely solely on 'buy'/'sell' signals for opening/increasing/decreasing positions.
+    """
     def __init__(self):
         self.current_idx = None
         self.data = None
         self.cash = None
-        self.orders = []
-        self.trades = []
-        self.positions = []  # Track open positions
-        self.tp_atr_multiplier = 2.0  # Multiplier for TP/SL levels in terms of ATR
-        self.sl_atr_multiplier = 1.0  # Multiplier for TP/SL levels in terms of ATR
+        self.orders = []       # fresh each bar; filled in the next bar
+        self.trades = []       # completed trades
+        self.positions = []    # open net positions (one per ticker)
 
     def close(self):
-        return self.data.loc[self.current_idx]['Close']
-
-    def position_size(self):
-        # Sum sizes of all open positions
-        return sum([pos.size for pos in self.positions])
+        # convenience to return the closing price
+        return self.data.loc[self.current_idx, 'Close']
 
     def get_position(self, ticker):
-        # Return the first open position for a given ticker (if any)
+        # Return the open position for the ticker (if any). Single net position approach.
         for pos in self.positions:
             if pos.ticker == ticker:
                 return pos
         return None
 
-    def buy(self, ticker, size=1):
-        # Only add an entry order if maximum positions not reached
-        if len(self.positions) < 5:
-            self.orders.append(
-                Order(
-                    ticker=ticker,
-                    side='buy',
-                    size=size,
-                    idx=self.current_idx,
-                    role='entry',
-                    persistent=False
-                )
-            )
-        else:
-            print(f"{self.current_idx} Cannot buy {ticker}: maximum positions reached.")
-
-    def sell(self, ticker, size=1):
-        # Manual exit order for an existing position
-        pos = self.get_position(ticker)
-        if pos:
-            self.orders.append(
-                Order(
-                    ticker=ticker,
-                    side='sell',
-                    size=size,
-                    idx=self.current_idx,
-                    role='entry',  # using 'entry' role for manual exits
-                    persistent=False
-                )
-            )
-        else:
-            print(f"{self.current_idx} No open position for ticker {ticker} to sell.")
-
-    def buy_limit(self, ticker, limit_price, size=1):
-        self.orders.append(
-            Order(
-                ticker=ticker,
-                side='buy',
-                size=size,
-                limit_price=limit_price,
-                order_type='limit',
-                idx=self.current_idx,
-                role='entry',
-                persistent=False
-            )
-        )
-
-    def sell_limit(self, ticker, limit_price, size=1):
-        self.orders.append(
-            Order(
-                ticker=ticker,
-                side='sell',
-                size=size,
-                limit_price=limit_price,
-                order_type='limit',
-                idx=self.current_idx,
-                role='entry',
-                persistent=False
-            )
-        )
-
-    def calculate_tp_sl(self, fill_price, current_idx):
+    def buy(self, ticker, size=1, limit_price=None):
         """
-        Dynamically calculate TP/SL prices based on a volatility measure.
-        Here we assume that your data contains an 'ATR' column.
-        If 'ATR' is not present, a default (5% of fill_price) is used.
+        Issue a buy order. This will move the net position up by `size`.
+        If position is negative (short), this will partially close the short, or
+        even flip to long if size is big enough.
         """
-        atr = self.data.loc[current_idx].get('ATR', fill_price * 0.05)
-        # predicted_volatility_category =self.data.loc[current_idx].get('volatility_category', 'normal')
-        # if predicted_volatility_category == 'low':
-        #     self.tp_atr_multiplier = 2.00
-        #     self.sl_atr_multiplier = 2.00
-        # elif predicted_volatility_category == 'high':
-        #     self.tp_atr_multiplier = 4.00
-        #     self.sl_atr_multiplier = 4.00
-        # else:
-        #     self.tp_atr_multiplier = 3.00
-        #     self.sl_atr_multiplier = 3.00
-        tp_price = fill_price + self.tp_atr_multiplier * atr
-        sl_price = fill_price - self.sl_atr_multiplier * atr
-        return tp_price, sl_price
+        order_type = 'market' if limit_price is None else 'limit'
+        self.orders.append(Order(
+            ticker=ticker,
+            side='buy',
+            size=size,
+            idx=self.current_idx,
+            limit_price=limit_price,
+            order_type=order_type,
+            role='entry',
+            persistent=False
+        ))
 
-    def update_exit_orders(self, current_idx):
-        """Update TP/SL orders for all open positions using the latest volatility."""
-        for pos in self.positions:
-            tp_price, sl_price = self.calculate_tp_sl(pos.entry_price, current_idx)
-            pos.tp_order.limit_price = tp_price
-            pos.sl_order.limit_price = sl_price
+    def sell(self, ticker, size=1, limit_price=None):
+        """
+        Issue a sell order. This will move the net position down by `size`.
+        If position is positive (long), this will reduce or close the long,
+        or even flip to short if size is big enough.
+        """
+        order_type = 'market' if limit_price is None else 'limit'
+        self.orders.append(Order(
+            ticker=ticker,
+            side='sell',
+            size=size,
+            idx=self.current_idx,
+            limit_price=limit_price,
+            order_type=order_type,
+            role='entry',
+            persistent=False
+        ))
 
     def on_bar(self):
-        """This should be overridden by your custom strategy logic."""
-        raise NotImplementedError("Implement your strategy logic in on_bar()")
+        """
+        Override this method with your strategy logic.
+        For example, you check signals and decide to buy or sell.
+        """
+        raise NotImplementedError("You must implement on_bar() in your concrete strategy.")
 
-class Trade():
-    """Trade objects are created when an order is filled."""
-    def __init__(self, ticker, side, size, price, order_type, idx, role):
-        self.ticker = ticker
-        self.side = side
-        self.size = size
-        self.price = price
-        self.order_type = order_type
-        self.idx = idx
-        self.role = role
-
-    def __repr__(self):
-        return f'<Trade: {self.idx} {self.ticker} {self.size}@{self.price} Role:{self.role}>'
-
-class Order():
-    """
-    Order objects represent intended transactions.
-    
-    Parameters:
-      - role: 'entry', 'take_profit', or 'stop_loss'
-      - persistent: If True, the order is not cleared after each tick (used for TP/SL orders)
-    """
-    def __init__(self, ticker, side, size, idx, limit_price=None, order_type='market', role='entry', persistent=False):
-        self.ticker = ticker
-        self.side = side
-        self.size = size
-        self.order_type = order_type
-        self.idx = idx
-        self.limit_price = limit_price
-        self.role = role  # 'entry', 'take_profit', or 'stop_loss'
-        self.persistent = persistent  # For TP/SL orders
-        self.parent_position = None  # Links TP/SL orders to their position
-
-    def __repr__(self):
-        return f'<Order: {self.idx} {self.ticker} {self.side} {self.size} {self.order_type} Role:{self.role} Persistent:{self.persistent}>'
+    def update_exit_orders(self, current_idx):
+        """
+        No-op in this simplified version, since we are not using TP/SL anymore.
+        """
+        pass
