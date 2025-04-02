@@ -293,6 +293,9 @@ class Engine:
         transaction_fee = self.initial_cash * self.transaction_cost
         initial_investment = self.initial_cash - transaction_fee
         portfolio_bh = (initial_investment / initial_price) * self.data['Close']
+
+        self.portfolio_bh = portfolio_bh
+
         buy_and_hold_final_value = portfolio_bh.iloc[-1]
 
         # Subtract a transaction cost when "selling" at the end
