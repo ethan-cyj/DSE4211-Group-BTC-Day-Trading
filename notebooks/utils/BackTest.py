@@ -330,6 +330,8 @@ class Engine:
         print(f"Final Positions Value: {total_position_value} , Final Size: {final_size}")
         print(f"Final Portfolio Value: {final_value}")
 
+        print(f"Final Portfolio Value: {final_value}")
+
         # Transaction costs are already subtracted from self.cash whenever we traded,
         # so final_value is already net of transaction costs in this simplified approach.
         total_return = 100.0 * (final_value / self.initial_cash - 1.0)
