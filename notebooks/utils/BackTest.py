@@ -82,6 +82,9 @@ class Engine:
         self.cash_series = {}
         self.stock_series = {}
 
+        self.unrealized_pnl_series = {}  # New: store unrealized PnL per bar
+        self.realized_pnl_series = {}    # New: store cumulative realized PnL per bar
+
         self.portfolio = None      # will store final DF with 'stock', 'cash', 'total_aum'
         self.portfolio_bh = None   # buy-and-hold comparison
         self.trading_days = 252 if asset_type == 'equities' else 365
@@ -95,6 +98,9 @@ class Engine:
     def run(self):
         self.strategy.data = self.data
         self.strategy.cash = self.cash
+
+        self.realized_pnl_series = {}
+        self.unrealized_pnl_series = {}
 
         for idx in tqdm(self.data.index):
             self.current_idx = idx
@@ -120,6 +126,18 @@ class Engine:
             self.cash_series[idx] = self.cash
             self.stock_series[idx] = total_position_value
 
+            unrealized_pnl = 0
+            current_close = self.data.loc[self.current_idx]['Close']
+            for pos in self.strategy.positions:
+                pnl = pos.size * (current_close - pos.entry_price)
+                unrealized_pnl += pnl
+            self.unrealized_pnl_series[idx] = unrealized_pnl
+
+            # --- Compute Realized PnL ---
+            # Sum up PnL from all closed trades (those with roles "exit" or "cover")
+            realized_pnl = sum(trade.pnl for trade in self.strategy.trades if trade.role in ['exit', 'cover'])
+            self.realized_pnl_series[idx] = realized_pnl
+
         # Final performance stats
         return self._get_stats(self.asset_type)
 
@@ -142,20 +160,19 @@ class Engine:
 
         for order in self.strategy.orders:
             fill_price = open_price
-            can_fill = True  
 
-            if can_fill:
-                pos = self.strategy.get_position(order.ticker)
-                transaction_fee = fill_price * order.size * self.transaction_cost
+            pos = self.strategy.get_position(order.ticker)
+            transaction_fee = fill_price * order.size * self.transaction_cost
 
-                if order.side == 'buy':
-                    current_size = pos.size if pos else 0
-                    new_size = current_size + order.size
+            if order.side == 'buy':
+                current_size = pos.size if pos else 0
+                new_size = current_size + order.size
 
-                    if new_size > max_position_size:  # Ignore order if it exceeds leverage cap
-                        continue
+                if new_size > max_position_size:  # Ignore order if it exceeds leverage cap
+                    continue
 
-                    if pos and pos.size < 0:  # Closing a short position
+                if pos and pos.size < 0:  # Closing a short position
+                    if order.size <= abs(pos.size):
                         size_to_cover = min(order.size, abs(pos.size))
                         pnl = (pos.entry_price - fill_price) * size_to_cover  # Short: Profit when buy price is lower
                         self.cash -= (fill_price * size_to_cover + transaction_fee)
@@ -169,30 +186,62 @@ class Engine:
                             self.strategy.positions.remove(pos)
                         else:
                             pos.size += size_to_cover  # Reduce short
-
-                    elif pos is None or pos.size >= 0:  # New long or adding to long
-                        cost = fill_price * order.size + transaction_fee
-                        if self.cash >= cost:
-                            self.cash -= cost
-                            if pos:
-                                pos.size += order.size
-                            else:
-                                pos = Position(order.ticker, order.size, fill_price, None)
-                                self.strategy.positions.append(pos)
-
+                    else:
+                        # Reversal: order.size > abs(pos.size)
+                        # 1. Cover the entire short
+                        size_to_cover = abs(pos.size)
+                        fee_cover = fill_price * size_to_cover * self.transaction_cost
+                        pnl = (pos.entry_price - fill_price) * size_to_cover
+                        self.cash -= (fill_price * size_to_cover + fee_cover)
+                        self.strategy.trades.append(
+                            Trade(order.ticker, 'buy', size_to_cover, fill_price, order.order_type,
+                                self.current_idx, "cover", pnl)
+                        )
+                        self.strategy.positions.remove(pos)
+                        # 2. Use the remaining size to open a new long position
+                        remaining_size = order.size - size_to_cover
+                        fee_entry = fill_price * remaining_size * self.transaction_cost
+                        cost_entry = fill_price * remaining_size + fee_entry
+                        if self.cash >= cost_entry:
+                            self.cash -= cost_entry
+                            new_pos = Position(order.ticker, remaining_size, fill_price, None)
+                            self.strategy.positions.append(new_pos)
                             self.strategy.trades.append(
-                                Trade(order.ticker, 'buy', order.size, fill_price, order.order_type,
+                                Trade(order.ticker, 'buy', remaining_size, fill_price, order.order_type,
                                     self.current_idx, "entry")
                             )
 
-                elif order.side == 'sell':
-                    current_size = pos.size if pos else 0
-                    new_size = current_size - order.size
+                elif pos is None or pos.size >= 0:  # New long or adding to long
+                    cost = fill_price * order.size + transaction_fee
+                    if self.cash >= cost:
+                        self.cash -= cost
+                        if pos:
+                            # added this chunk of code to update the entry price
+                            old_size = pos.size
+                            old_entry = pos.entry_price
+                            new_total_size = old_size + order.size
+                            new_entry = (old_size * old_entry + order.size * fill_price) / new_total_size
+                            pos.size = new_total_size
+                            pos.entry_price = new_entry
+                            # end of chunk
+                        else:
+                            pos = Position(order.ticker, order.size, fill_price, None)
+                            self.strategy.positions.append(pos)
 
-                    if new_size < -max_position_size:  # Ignore order if it exceeds leverage cap on short positions
-                        continue
+                        self.strategy.trades.append(
+                            Trade(order.ticker, 'buy', order.size, fill_price, order.order_type,
+                                self.current_idx, "entry")
+                        )
 
-                    if pos and pos.size > 0:  # Closing a long position
+            elif order.side == 'sell':
+                current_size = pos.size if pos else 0
+                new_size = current_size - order.size
+
+                if new_size < -max_position_size:  # Ignore order if it exceeds leverage cap on short positions
+                    continue
+
+                if pos and pos.size > 0:  # Closing a long position
+                    if order.size <= pos.size:
                         size_to_sell = min(order.size, pos.size)
                         pnl = (fill_price - pos.entry_price) * size_to_sell  # Long: Profit when sell price is higher
                         self.cash += (fill_price * size_to_sell - transaction_fee)
@@ -204,22 +253,50 @@ class Engine:
 
                         if size_to_sell == pos.size:
                             self.strategy.positions.remove(pos)
-                        else:
+                        elif size_to_sell < pos.size:
                             pos.size -= size_to_sell  # Reduce long
-
-                    elif pos is None or pos.size <= 0:  # New short or adding to short
-                        proceeds = fill_price * order.size - transaction_fee
-                        self.cash += proceeds
-                        if pos:
-                            pos.size -= order.size
-                        else:
-                            pos = Position(order.ticker, -order.size, fill_price, None)
-                            self.strategy.positions.append(pos)
-
+                    else: # flip from long to utilising leverage
+                        # 1. close long position
+                        size_to_close = pos.size
+                        pnl = (fill_price - pos.entry_price) * size_to_close
+                        self.cash += (fill_price * size_to_close - transaction_fee)
                         self.strategy.trades.append(
-                            Trade(order.ticker, 'sell', order.size, fill_price, order.order_type,
+                            Trade(order.ticker, 'sell', size_to_close, fill_price, order.order_type,
+                                self.current_idx, "exit", pnl)
+                        )
+                        self.strategy.positions.remove(pos)
+
+                        # 2. The remaining order size opens a new short position.
+                        remaining_size = order.size - size_to_close
+                        proceeds = fill_price * remaining_size - (fill_price * remaining_size * self.transaction_cost)
+                        self.cash += proceeds  # cash is credited from short sale proceeds
+                        new_short = Position(order.ticker, -remaining_size, fill_price, None)
+                        self.strategy.positions.append(new_short)
+                        self.strategy.trades.append(
+                            Trade(order.ticker, 'sell', remaining_size, fill_price, order.order_type,
                                 self.current_idx, "entry")
                         )
+
+
+                elif pos is None or pos.size <= 0:  # New short or adding to short
+                    proceeds = fill_price * order.size - transaction_fee
+                    self.cash += proceeds
+                    if pos:
+                        # added this chunk
+                        old_abs_size = abs(pos.size)
+                        new_abs_size = old_abs_size + order.size
+                        new_entry = (old_abs_size * pos.entry_price + order.size * fill_price) / new_abs_size
+                        pos.size = -new_abs_size
+                        pos.entry_price = new_entry
+                        # end of chunk
+                    else:
+                        pos = Position(order.ticker, -order.size, fill_price, None)
+                        self.strategy.positions.append(pos)
+
+                    self.strategy.trades.append(
+                        Trade(order.ticker, 'sell', order.size, fill_price, order.order_type,
+                            self.current_idx, "entry")
+                    )
 
         self.strategy.orders = remaining_orders
 
@@ -243,10 +320,15 @@ class Engine:
         # Final portfolio value includes net positions at final close:
         total_position_value = 0
         final_price = self.data.loc[self.current_idx, 'Close']
+        final_size = 0
         for pos in self.strategy.positions:
             total_position_value += pos.size * final_price
+            final_size += pos.size
 
         final_value = self.cash + total_position_value
+        print(f"Holding Cash Value: {self.cash}")
+        print(f"Final Positions Value: {total_position_value} , Final Size: {final_size}")
+        print(f"Final Portfolio Value: {final_value}")
 
         print(f"Final Portfolio Value: {final_value}")
 
@@ -337,6 +419,11 @@ class Engine:
 
         metrics['Avg Profit per Trade'] = round(avg_profit, 2)
 
+        final_unrealized = self.unrealized_pnl_series[self.current_idx]
+        final_realized = self.realized_pnl_series[self.current_idx]
+        metrics['Final Unrealized PnL'] = final_unrealized
+        metrics['Final Realized PnL'] = final_realized
+
         self.print_metrics(metrics)
         return metrics
 
@@ -372,6 +459,45 @@ class Engine:
             mode='lines',
             name='Buy & Hold'
         ))
+
+        # Position Value (open positions value) separately
+        # fig.add_trace(go.Scatter(
+        #     x=self.portfolio.index,
+        #     y=self.portfolio['stock'],
+        #     mode='lines',
+        #     name='Position Value'
+        # ))
+
+        # New trace for Unrealized PnL
+        dates = list(self.unrealized_pnl_series.keys())
+        unrealized_values = list(self.unrealized_pnl_series.values())
+        fig.add_trace(go.Scatter(
+            x=dates,
+            y=unrealized_values,
+            mode='lines',
+            name='Unrealized PnL'
+        ))
+
+        # New trace for cash
+        # dates = list(self.cash_series.keys())
+        # cash = list(self.cash_series.values())
+        # fig.add_trace(go.Scatter(
+        #     x=dates,
+        #     y=cash,
+        #     mode='lines',
+        #     name='Cash'
+        # ))
+        
+        # New trace for Realized PnL
+        if self.realized_pnl_series:
+            dates = list(self.realized_pnl_series.keys())
+            realized_values = list(self.realized_pnl_series.values())
+            fig.add_trace(go.Scatter(
+                x=dates,
+                y=realized_values,
+                mode='lines',
+                name='Realized PnL'
+            ))
 
         if show_signals and hasattr(self.strategy, 'trades'):
             trades = self.strategy.trades
