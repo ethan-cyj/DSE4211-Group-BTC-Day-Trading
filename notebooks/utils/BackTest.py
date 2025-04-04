@@ -129,7 +129,7 @@ class Engine:
             unrealized_pnl = 0
             current_close = self.data.loc[self.current_idx]['Close']
             for pos in self.strategy.positions:
-                pnl = pos.size * (current_close - pos.entry_price)
+                pnl = pos.size * (current_close - pos.entry_price) - pos.size * self.transaction_cost * current_close
                 unrealized_pnl += pnl
             self.unrealized_pnl_series[idx] = unrealized_pnl
 
@@ -174,7 +174,8 @@ class Engine:
                 if pos and pos.size < 0:  # Closing a short position
                     if order.size <= abs(pos.size):
                         size_to_cover = min(order.size, abs(pos.size))
-                        pnl = (pos.entry_price - fill_price) * size_to_cover  # Short: Profit when buy price is lower
+                        transaction_fee - size_to_cover * fill_price * self.transaction_cost
+                        pnl = (pos.entry_price - fill_price) * size_to_cover - transaction_fee  # Short: Profit when buy price is lower
                         self.cash -= (fill_price * size_to_cover + transaction_fee)
 
                         self.strategy.trades.append(
@@ -191,7 +192,7 @@ class Engine:
                         # 1. Cover the entire short
                         size_to_cover = abs(pos.size)
                         fee_cover = fill_price * size_to_cover * self.transaction_cost
-                        pnl = (pos.entry_price - fill_price) * size_to_cover
+                        pnl = (pos.entry_price - fill_price) * size_to_cover - fee_cover
                         self.cash -= (fill_price * size_to_cover + fee_cover)
                         self.strategy.trades.append(
                             Trade(order.ticker, 'buy', size_to_cover, fill_price, order.order_type,
@@ -204,6 +205,7 @@ class Engine:
                         cost_entry = fill_price * remaining_size + fee_entry
                         if self.cash >= cost_entry:
                             self.cash -= cost_entry
+                            fill_price = fill_price + fee_entry
                             new_pos = Position(order.ticker, remaining_size, fill_price, None)
                             self.strategy.positions.append(new_pos)
                             self.strategy.trades.append(
@@ -220,7 +222,7 @@ class Engine:
                             old_size = pos.size
                             old_entry = pos.entry_price
                             new_total_size = old_size + order.size
-                            new_entry = (old_size * old_entry + order.size * fill_price) / new_total_size
+                            new_entry = (old_size * old_entry + cost) / new_total_size
                             pos.size = new_total_size
                             pos.entry_price = new_entry
                             # end of chunk
@@ -243,7 +245,8 @@ class Engine:
                 if pos and pos.size > 0:  # Closing a long position
                     if order.size <= pos.size:
                         size_to_sell = min(order.size, pos.size)
-                        pnl = (fill_price - pos.entry_price) * size_to_sell  # Long: Profit when sell price is higher
+                        transaction_fee = size_to_sell * fill_price * self.transaction_cost
+                        pnl = (fill_price - pos.entry_price) * size_to_sell - transaction_fee  # Long: Profit when sell price is higher
                         self.cash += (fill_price * size_to_sell - transaction_fee)
 
                         self.strategy.trades.append(
@@ -258,7 +261,8 @@ class Engine:
                     else: # flip from long to utilising leverage
                         # 1. close long position
                         size_to_close = pos.size
-                        pnl = (fill_price - pos.entry_price) * size_to_close
+                        transaction_fee = size_to_close * fill_price * self.transaction_cost
+                        pnl = (fill_price - pos.entry_price) * size_to_close - transaction_fee
                         self.cash += (fill_price * size_to_close - transaction_fee)
                         self.strategy.trades.append(
                             Trade(order.ticker, 'sell', size_to_close, fill_price, order.order_type,
@@ -268,9 +272,10 @@ class Engine:
 
                         # 2. The remaining order size opens a new short position.
                         remaining_size = order.size - size_to_close
-                        proceeds = fill_price * remaining_size - (fill_price * remaining_size * self.transaction_cost)
+                        transaction_fee = remaining_size * fill_price * self.transaction_cost
+                        proceeds = fill_price * remaining_size - transaction_fee
                         self.cash += proceeds  # cash is credited from short sale proceeds
-                        new_short = Position(order.ticker, -remaining_size, fill_price, None)
+                        new_short = Position(order.ticker, -remaining_size, fill_price + transaction_fee, None)
                         self.strategy.positions.append(new_short)
                         self.strategy.trades.append(
                             Trade(order.ticker, 'sell', remaining_size, fill_price, order.order_type,
@@ -285,7 +290,7 @@ class Engine:
                         # added this chunk
                         old_abs_size = abs(pos.size)
                         new_abs_size = old_abs_size + order.size
-                        new_entry = (old_abs_size * pos.entry_price + order.size * fill_price) / new_abs_size
+                        new_entry = (old_abs_size * pos.entry_price + order.size * fill_price + transaction_fee) / new_abs_size
                         pos.size = -new_abs_size
                         pos.entry_price = new_entry
                         # end of chunk
@@ -327,9 +332,7 @@ class Engine:
 
         final_value = self.cash + total_position_value
         print(f"Holding Cash Value: {self.cash}")
-        print(f"Final Positions Value: {total_position_value} , Final Size: {final_size}")
-        print(f"Final Portfolio Value: {final_value}")
-
+        print(f"Final Positions Value: {total_position_value} , Final Size: {final_size}, Final Avg Cost: {pos.entry_price}")
         print(f"Final Portfolio Value: {final_value}")
 
         # Transaction costs are already subtracted from self.cash whenever we traded,
